@@ -121,13 +121,21 @@ permissions:
 jobs:
   atelier:
     uses: stepbrobd/atelier/.github/workflows/discover.yaml@master
-    secrets: inherit
+    secrets:
+      ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+      CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      CACHIX_SIGNING_KEY: ${{ secrets.CACHIX_SIGNING_KEY }}
 ```
 
-`secrets: inherit` forwards the cache secrets above. Pin `@master` to track the
-latest, or a tag/SHA to pin a version. Make `Gate` the single required status in
-branch protection: it stays green whether the matrix is empty, every build
-passes, or attributes are skipped.
+Map only the cache secrets you use. `secrets: inherit` is a tempting shortcut,
+but GitHub forwards inherited secrets only when the caller is in the **same
+organization or enterprise** as atelier — across accounts it silently passes
+nothing, so an explicit map is the portable choice. Configuration **variables**
+(`vars.ATTIC_CACHE` and friends) need no passing: GitHub resolves `vars` against
+*your* repository automatically, so your cache name, token, and the pushes all
+stay yours. Pin `@master` to track the latest, or a tag/SHA to pin a version.
+Make `Gate` the single required status in branch protection: it stays green
+whether the matrix is empty, every build passes, or attributes are skipped.
 
 ### Fork it (alternative)
 
