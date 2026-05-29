@@ -1,12 +1,12 @@
 name: Atelier
-description: install nix and optionally reclaim disk space for building flake outputs
+description: Install Nix and optionally reclaim disk space for building flake outputs
 
 inputs:
   system:
-    description: nix system to build for
+    description: Nix system to build for
     required: true
   reclaim:
-    description: reclaim runner disk space for large builds
+    description: Reclaim runner disk space for large builds
     default: "true"
 
 runs:
@@ -22,17 +22,17 @@ runs:
       if: ${{ inputs.reclaim == 'true' && runner.os == 'macOS' }}
       shell: bash
       run: |
-        echo "::group::disk space (before)"
+        echo "::group::Disk space (before)"
         sudo df -h
         echo "::endgroup::"
 
-        echo "::group::disable mds"
+        echo "::group::Disable mds"
         sudo mdutil -i off -a || echo "mdutil failed"
         sudo launchctl unload -w /System/Library/LaunchDaemons/com.apple.metadata.mds.plist \
           || echo "launchctl unload failed"
         echo "::endgroup::"
 
-        echo "background space expansion started, /nix will grow as space becomes available"
+        echo "Background space expansion started, /nix will grow as space becomes available"
         sudo rm -rf \
           /Applications/Xcode_* \
           /Library/Developer/CoreSimulator \
@@ -65,6 +65,6 @@ runs:
       with:
         shell: bash -e {0}
         post-run: |
-          echo "::group::disk space (after)"
+          echo "::group::Disk space (after)"
           sudo df -h
           echo "::endgroup::"
