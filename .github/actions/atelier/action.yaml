@@ -53,6 +53,7 @@ runs:
           experimental-features = nix-command flakes
           build-dir = /nix/build
           system = ${{ inputs.system }}
+          sandbox = true
 
     - name: Create Build Dir
       shell: bash
