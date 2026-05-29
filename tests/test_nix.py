@@ -80,6 +80,8 @@ def test_clean_error_keeps_innermost_message() -> None:
 
 def test_clean_error_neutralises_workflow_commands() -> None:
     assert "::" not in clean_error("boom ::stop-commands::abcd")
+    # odd-length colon runs must not leave a "::" a single replace would miss
+    assert "::" not in clean_error("boom :::warning file=x::spoof")
 
 
 def test_build_select_rejects_unallowlisted_values() -> None:
@@ -91,7 +93,7 @@ def test_build_select_rejects_unallowlisted_values() -> None:
         _build_select(["x86_64-linux"], ["evil"], [])
 
 
-def test_select_injects_allowlisted_lists() -> None:
+def test_build_select_injects_allowlisted_lists() -> None:
     expr = _build_select(["x86_64-linux"], ["legacyPackages"], ["nixosConfigurations"])
     assert 'systems = [ "x86_64-linux" ]' in expr
     assert 'perSystemSets = [ "legacyPackages" ]' in expr
