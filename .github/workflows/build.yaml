@@ -8,11 +8,11 @@ on:
   workflow_call:
     inputs:
       cells:
-        description: json matrix object for this chunk
+        description: JSON matrix object for this chunk
         required: true
         type: string
       push:
-        description: push build results to the binary cache
+        description: Push build results to the binary cache
         required: false
         default: false
         type: boolean
@@ -46,7 +46,7 @@ jobs:
         if: ${{ matrix.installable == '' }}
         shell: bash
         run: |
-          echo "::error::evaluation failed for ${LABEL}"
+          echo "::error::Evaluation failed for ${LABEL}"
           printf '%s\n' "${EVAL_ERROR}"
           exit 1
 
