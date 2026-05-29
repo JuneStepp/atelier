@@ -132,7 +132,7 @@ but GitHub forwards inherited secrets only when the caller is in the **same
 organization or enterprise** as atelier — across accounts it silently passes
 nothing, so an explicit map is the portable choice. Configuration **variables**
 (`vars.ATTIC_CACHE` and friends) need no passing: GitHub resolves `vars` against
-*your* repository automatically, so your cache name, token, and the pushes all
+_your_ repository automatically, so your cache name, token, and the pushes all
 stay yours. Pin `@master` to track the latest, or a tag/SHA to pin a version.
 Make `Gate` the single required status in branch protection: it stays green
 whether the matrix is empty, every build passes, or attributes are skipped.
