@@ -55,6 +55,7 @@
           ${lib.getExe pkgs.nixpkgs-fmt} .
           ${lib.getExe pkgs.ruff} check --fix --unsafe-fixes --preview .
           ${lib.getExe pkgs.taplo} format pyproject.toml
+          ${lib.getExe pkgs.uv} run pytest
           popd
         '';
       };
