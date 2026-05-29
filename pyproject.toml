@@ -9,3 +9,9 @@ dependencies = ["click"]
 [build-system]
 requires = ["uv_build"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = ["pytest"]
+
+[project.scripts]
+atelier = "atelier.__main__:main"
