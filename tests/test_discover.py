@@ -83,12 +83,12 @@ def _cells(count: int) -> list[Cell]:
 def test_single_chunk_named_build() -> None:
     chunks = _chunks(_cells(5))
     assert len(chunks) == 1
-    assert chunks[0].name == "build"
+    assert chunks[0].name == "Build"
     assert len(json.loads(chunks[0].cells)["include"]) == 5
 
 
 def test_chunks_split_at_256() -> None:
     chunks = _chunks(_cells(257))
-    assert [chunk.name for chunk in chunks] == ["build 1", "build 2"]
+    assert [chunk.name for chunk in chunks] == ["Build 1", "Build 2"]
     assert len(json.loads(chunks[0].cells)["include"]) == 256
     assert len(json.loads(chunks[1].cells)["include"]) == 1

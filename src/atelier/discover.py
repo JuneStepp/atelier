@@ -90,7 +90,7 @@ def _chunks(cells: Sequence[Cell]) -> list[Chunk]:
     groups = [cells[i : i + MATRIX_CHUNK] for i in range(0, len(cells), MATRIX_CHUNK)]
     return [
         Chunk(
-            name="build" if len(groups) == 1 else f"build {index + 1}",
+            name="Build" if len(groups) == 1 else f"Build {index + 1}",
             cells=json.dumps({"include": [asdict(cell) for cell in group]}),
         )
         for index, group in enumerate(groups)
