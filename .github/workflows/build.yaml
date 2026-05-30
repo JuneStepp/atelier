@@ -122,7 +122,9 @@ jobs:
           if [ -n "${NIKS3_SERVER}" ]; then
             (
               set -euo pipefail
-              nix profile add nixpkgs#niks3
+              # nixpkgs niks3 lags at 1.4.0 (no --auth-token-{path,script})
+              # use my pinned niks3
+              nix profile add github:stepbrobd/inc#niks3
               if [ -n "${NIKS3_TOKEN:-}" ]; then
                 # token auth: write the secret to a private file, pass its path
                 tok="$(mktemp)"
