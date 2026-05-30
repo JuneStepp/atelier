@@ -50,16 +50,19 @@ def test_excluded() -> None:
     assert not excluded("legacyPackages.x86_64-linux.caddy", _RULES)
 
 
-def test_prunable_excludes_exact_leaves_only() -> None:
+def test_prunable_excludes_groups_by_set_and_system() -> None:
     rules = Rules(
         systems=(),
         include=(),
         exclude=(
             "legacyPackages.*.verus",
             "legacyPackages.*.spotify",
+            "legacyPackages.aarch64-darwin.bird3",  # specific system, prunable
             "legacyPackages.*.ripe-atlas-*",  # glob leaf, stays a post filter
             "legacyPackages.*.ocamlPackages.*",  # nested, stays a post filter
             "nixosConfigurations.host",  # not a per system set
         ),
     )
-    assert prunable_excludes(rules) == {"legacyPackages": ["spotify", "verus"]}
+    assert prunable_excludes(rules) == {
+        "legacyPackages": {"*": ["spotify", "verus"], "aarch64-darwin": ["bird3"]}
+    }

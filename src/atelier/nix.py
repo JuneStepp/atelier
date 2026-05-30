@@ -25,7 +25,7 @@ let
   ps = builtins.foldl' (acc: set:
         builtins.foldl' (a: sys:
           if (o ? ${set}) && (o.${set} ? ${sys})
-          then a // { "${set}.${sys}" = builtins.removeAttrs o.${set}.${sys} (excludes.${set} or [ ]); }
+          then a // { "${set}.${sys}" = builtins.removeAttrs o.${set}.${sys} ((excludes.${set}.${sys} or [ ]) ++ (excludes.${set}."*" or [ ])); }
           else a
         ) acc systems
       ) { } perSystemSets;
@@ -52,19 +52,26 @@ def _nix_list(items: Sequence[str]) -> str:
     return " ".join(_nix_str(item) for item in items)
 
 
-def _nix_excludes(exclude_leaves: Mapping[str, Sequence[str]]) -> str:
-    """Render ``"set" = [ "leaf" … ];`` pairs for the embedded ``excludes`` attrset."""
-    return " ".join(
-        f"{_nix_str(set_name)} = [ {_nix_list(leaves)} ];"
-        for set_name, leaves in exclude_leaves.items()
-    )
+def _nix_excludes(exclude_leaves: Mapping[str, Mapping[str, Sequence[str]]]) -> str:
+    """Render ``"set" = { "sys" = [ "leaf" … ]; … };`` for the ``excludes`` attrset.
+
+    ``sys`` is either ``"*"`` (drop from every system) or a specific system.
+    """
+    sets = []
+    for set_name, by_system in exclude_leaves.items():
+        pairs = " ".join(
+            f"{_nix_str(system)} = [ {_nix_list(leaves)} ];"
+            for system, leaves in by_system.items()
+        )
+        sets.append(f"{_nix_str(set_name)} = {{ {pairs} }};")
+    return " ".join(sets)
 
 
 def _build_select(
     systems: Sequence[str],
     per_system_sets: Sequence[str],
     config_sets: Sequence[str],
-    exclude_leaves: Mapping[str, Sequence[str]] | None = None,
+    exclude_leaves: Mapping[str, Mapping[str, Sequence[str]]] | None = None,
 ) -> str:
     # fail closed if an unallowlisted value ever reaches the embedded nix
     # the discover layer already filters these, this guards against a future
@@ -94,7 +101,7 @@ def evaluate(
     per_system_sets: Sequence[str],
     config_sets: Sequence[str],
     workers: int = 4,
-    exclude_leaves: Mapping[str, Sequence[str]] | None = None,
+    exclude_leaves: Mapping[str, Mapping[str, Sequence[str]]] | None = None,
 ) -> list[dict[str, Any]]:
     """Run nix-eval-jobs over the rooted output sets and return one object per attr.
 

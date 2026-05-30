@@ -102,16 +102,20 @@ def test_build_select_injects_allowlisted_lists() -> None:
 
 def test_build_select_prunes_excluded_leaves() -> None:
     expr = _build_select(
-        ["x86_64-linux"], ["legacyPackages"], [], {"legacyPackages": ["spotify", "verus"]}
+        ["x86_64-linux"],
+        ["legacyPackages"],
+        [],
+        {"legacyPackages": {"*": ["spotify", "verus"], "aarch64-darwin": ["bird3"]}},
     )
-    assert '"legacyPackages" = [ "spotify" "verus" ];' in expr
     assert "removeAttrs" in expr
+    assert '"*" = [ "spotify" "verus" ];' in expr
+    assert '"aarch64-darwin" = [ "bird3" ];' in expr
 
 
 def test_build_select_escapes_exclude_leaves() -> None:
     # a crafted leaf name must stay inside its nix string, not break out
     expr = _build_select(
-        ["x86_64-linux"], ["legacyPackages"], [], {"legacyPackages": ['evil"; x']}
+        ["x86_64-linux"], ["legacyPackages"], [], {"legacyPackages": {"*": ['evil"; x']}}
     )
     assert '"evil\\"; x"' in expr
 
@@ -120,4 +124,4 @@ def test_build_select_rejects_unknown_exclude_set() -> None:
     import pytest
 
     with pytest.raises(ValueError, match="unknown output set"):
-        _build_select(["x86_64-linux"], ["legacyPackages"], [], {"bogus": ["x"]})
+        _build_select(["x86_64-linux"], ["legacyPackages"], [], {"bogus": {"*": ["x"]}})

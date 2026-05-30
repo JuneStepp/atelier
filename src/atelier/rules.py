@@ -43,22 +43,28 @@ def excluded(path: str, rules: Rules) -> bool:
     return any(matches(pattern, path) for pattern in rules.exclude)
 
 
-def prunable_excludes(rules: Rules) -> dict[str, list[str]]:
-    """Exact leaf names, per per-system set, droppable before evaluation.
+def prunable_excludes(rules: Rules) -> dict[str, dict[str, list[str]]]:
+    """Exact leaf names droppable before evaluation, grouped by set then system.
 
-    Only ``<set>.*.<leaf>`` excludes with a literal ``<leaf>`` (no glob
-    metacharacters) qualify, letting the select expression ``removeAttrs`` them
-    so nix-eval-jobs never forces, fetches, or builds an excluded attribute.
-    Broader globs stay post-eval filters.
+    Handles ``<set>.<sys>.<leaf>`` excludes where ``<sys>`` is ``*`` (all systems)
+    or a literal system, and ``<leaf>`` is literal (no glob metacharacters). The
+    select expression ``removeAttrs`` them so nix-eval-jobs never forces, fetches,
+    or builds an excluded attribute. Broader globs stay post-eval filters.
+
+    Shape: ``{set: {("*" | system): [leaf, ...]}}``.
     """
-    out: dict[str, list[str]] = {}
+    out: dict[str, dict[str, list[str]]] = {}
     for pattern in rules.exclude:
         parts = pattern.split(".")
-        if (
-            len(parts) == 3
-            and parts[0] in PER_SYSTEM_SETS
-            and parts[1] == "*"
-            and not (_GLOB_CHARS & set(parts[2]))
-        ):
-            out.setdefault(parts[0], []).append(parts[2])
-    return {output: sorted(set(leaves)) for output, leaves in out.items()}
+        if len(parts) != 3 or parts[0] not in PER_SYSTEM_SETS:
+            continue
+        system, leaf = parts[1], parts[2]
+        if _GLOB_CHARS & set(leaf):
+            continue
+        if system != "*" and _GLOB_CHARS & set(system):
+            continue
+        out.setdefault(parts[0], {}).setdefault(system, []).append(leaf)
+    return {
+        output: {system: sorted(set(leaves)) for system, leaves in by_system.items()}
+        for output, by_system in out.items()
+    }
