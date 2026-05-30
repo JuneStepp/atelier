@@ -72,7 +72,7 @@ exclude = [
 Builds optionally push their results to a binary cache so later runs (and your
 machines) pull instead of rebuild. Configure one under **Settings -> Secrets and
 variables -> Actions** with repository **variables** and **secrets**. Atelier
-supports Attic and Cachix; if both are configured, Attic wins.
+supports Attic, Cachix, and niks3, and pushes to every backend you configure.
 
 Attic:
 
@@ -89,6 +89,20 @@ Cachix:
 | `CACHIX_CACHE`       | variable | cache name             |
 | `CACHIX_AUTH_TOKEN`  | secret   | auth token             |
 | `CACHIX_SIGNING_KEY` | secret   | signing key (optional) |
+
+niks3:
+
+| name           | kind     | value                                       |
+| -------------- | -------- | ------------------------------------------- |
+| `NIKS3_SERVER` | variable | niks3 server URL                            |
+| `NIKS3_TOKEN`  | secret   | bearer token (optional, enables token auth) |
+
+niks3 authenticates with GitHub Actions OIDC by default: set only `NIKS3_SERVER`
+and grant the calling workflow `id-token: write` (see the example below). For
+OIDC the niks3 server must have a GitHub OIDC provider whose bound claims admit
+your repository. Setting the `NIKS3_TOKEN` secret instead switches to that
+static token and needs no `id-token` permission. Unlike Attic and Cachix, niks3
+has no separate cache name - the server URL identifies the cache.
 
 Pushes happen on a push to your repository's default branch (or `master`) and on
 a run with `push: true`. Forked-PR runs never push.
@@ -117,6 +131,7 @@ on:
 permissions:
   contents: read
   checks: write # so skipped-attribute checks can be posted
+  id-token: write # so niks3 can push via OIDC (omit if you use NIKS3_TOKEN)
 
 jobs:
   atelier:
@@ -125,6 +140,7 @@ jobs:
       ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
       CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
       CACHIX_SIGNING_KEY: ${{ secrets.CACHIX_SIGNING_KEY }}
+      NIKS3_TOKEN: ${{ secrets.NIKS3_TOKEN }}
 ```
 
 Map only the cache secrets you use. `secrets: inherit` is a tempting shortcut,
