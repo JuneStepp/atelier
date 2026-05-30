@@ -50,12 +50,15 @@
             root="$(dirname "$root")"
           done
           pushd "$root" > /dev/null
+          ${lib.getExe pkgs.actionlint} -color
           ${lib.getExe pkgs.deno} fmt **/*.md **/*.yaml
-          ${lib.getExe pkgs.ty} check --fix --error all .
+          ${lib.getExe pkgs.gitleaks} git --no-banner --pre-commit --staged
           ${lib.getExe pkgs.nixpkgs-fmt} .
           ${lib.getExe pkgs.ruff} check --fix --unsafe-fixes --preview .
           ${lib.getExe pkgs.taplo} format pyproject.toml
+          ${lib.getExe pkgs.ty} check --fix --error all .
           ${lib.getExe pkgs.uv} run pytest
+          ${lib.getExe pkgs.zizmor} --fix=all .
           popd
         '';
       };
