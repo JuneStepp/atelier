@@ -98,3 +98,26 @@ def test_build_select_injects_allowlisted_lists() -> None:
     assert 'systems = [ "x86_64-linux" ]' in expr
     assert 'perSystemSets = [ "legacyPackages" ]' in expr
     assert 'configSets = [ "nixosConfigurations" ]' in expr
+
+
+def test_build_select_prunes_excluded_leaves() -> None:
+    expr = _build_select(
+        ["x86_64-linux"], ["legacyPackages"], [], {"legacyPackages": ["spotify", "verus"]}
+    )
+    assert '"legacyPackages" = [ "spotify" "verus" ];' in expr
+    assert "removeAttrs" in expr
+
+
+def test_build_select_escapes_exclude_leaves() -> None:
+    # a crafted leaf name must stay inside its nix string, not break out
+    expr = _build_select(
+        ["x86_64-linux"], ["legacyPackages"], [], {"legacyPackages": ['evil"; x']}
+    )
+    assert '"evil\\"; x"' in expr
+
+
+def test_build_select_rejects_unknown_exclude_set() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="unknown output set"):
+        _build_select(["x86_64-linux"], ["legacyPackages"], [], {"bogus": ["x"]})

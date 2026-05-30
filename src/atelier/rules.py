@@ -2,7 +2,9 @@ import fnmatch
 import tomllib
 from pathlib import Path
 
-from atelier.types import DEFAULT_INCLUDE, DEFAULT_SYSTEMS, Rules
+from atelier.types import DEFAULT_INCLUDE, DEFAULT_SYSTEMS, PER_SYSTEM_SETS, Rules
+
+_GLOB_CHARS = frozenset("*?[]")
 
 
 def load(path: Path) -> Rules:
@@ -39,3 +41,24 @@ def included(path: str, rules: Rules) -> bool:
 def excluded(path: str, rules: Rules) -> bool:
     """True when `path` matches any exclude glob."""
     return any(matches(pattern, path) for pattern in rules.exclude)
+
+
+def prunable_excludes(rules: Rules) -> dict[str, list[str]]:
+    """Exact leaf names, per per-system set, droppable before evaluation.
+
+    Only ``<set>.*.<leaf>`` excludes with a literal ``<leaf>`` (no glob
+    metacharacters) qualify, letting the select expression ``removeAttrs`` them
+    so nix-eval-jobs never forces, fetches, or builds an excluded attribute.
+    Broader globs stay post-eval filters.
+    """
+    out: dict[str, list[str]] = {}
+    for pattern in rules.exclude:
+        parts = pattern.split(".")
+        if (
+            len(parts) == 3
+            and parts[0] in PER_SYSTEM_SETS
+            and parts[1] == "*"
+            and not (_GLOB_CHARS & set(parts[2]))
+        ):
+            out.setdefault(parts[0], []).append(parts[2])
+    return {output: sorted(set(leaves)) for output, leaves in out.items()}

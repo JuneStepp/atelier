@@ -1,7 +1,7 @@
 import json
 import re
 import subprocess
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from atelier.types import CONFIG_SETS, PER_SYSTEM_SETS, RUNNERS, SKIP_PATTERN, Job
@@ -19,10 +19,13 @@ let
   systems = [ @SYSTEMS@ ];
   perSystemSets = [ @PER_SYSTEM@ ];
   configSets = [ @CONFIG@ ];
+  # exact leaf names per set to drop before recursing, so nix-eval-jobs never
+  # forces (and never fetches or builds) a manually excluded attribute
+  excludes = { @EXCLUDES@ };
   ps = builtins.foldl' (acc: set:
         builtins.foldl' (a: sys:
           if (o ? ${set}) && (o.${set} ? ${sys})
-          then a // { "${set}.${sys}" = o.${set}.${sys}; }
+          then a // { "${set}.${sys}" = builtins.removeAttrs o.${set}.${sys} (excludes.${set} or [ ]); }
           else a
         ) acc systems
       ) { } perSystemSets;
@@ -35,14 +38,33 @@ in ps // cs
 """
 
 
+def _nix_str(value: str) -> str:
+    """Quote a value as a nix string literal, escaping injection vectors.
+
+    Exclude leaf names come from the rule file, so escape backslashes, quotes,
+    and the ``${`` interpolation opener before embedding them in the expression.
+    """
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("${", "\\${")
+    return f'"{escaped}"'
+
+
 def _nix_list(items: Sequence[str]) -> str:
-    return " ".join(f'"{item}"' for item in items)
+    return " ".join(_nix_str(item) for item in items)
+
+
+def _nix_excludes(exclude_leaves: Mapping[str, Sequence[str]]) -> str:
+    """Render ``"set" = [ "leaf" … ];`` pairs for the embedded ``excludes`` attrset."""
+    return " ".join(
+        f"{_nix_str(set_name)} = [ {_nix_list(leaves)} ];"
+        for set_name, leaves in exclude_leaves.items()
+    )
 
 
 def _build_select(
     systems: Sequence[str],
     per_system_sets: Sequence[str],
     config_sets: Sequence[str],
+    exclude_leaves: Mapping[str, Sequence[str]] | None = None,
 ) -> str:
     # fail closed if an unallowlisted value ever reaches the embedded nix
     # the discover layer already filters these, this guards against a future
@@ -53,10 +75,16 @@ def _build_select(
     for output in (*per_system_sets, *config_sets):
         if output not in PER_SYSTEM_SETS and output not in CONFIG_SETS:
             raise ValueError(f"unknown output set {output!r}")
+    leaves = exclude_leaves or {}
+    # set names are allowlisted, leaf names are escaped (they are arbitrary)
+    for output in leaves:
+        if output not in PER_SYSTEM_SETS:
+            raise ValueError(f"unknown output set {output!r}")
     return (
         _SELECT_TEMPLATE.replace("@SYSTEMS@", _nix_list(systems))
         .replace("@PER_SYSTEM@", _nix_list(per_system_sets))
         .replace("@CONFIG@", _nix_list(config_sets))
+        .replace("@EXCLUDES@", _nix_excludes(leaves))
     )
 
 
@@ -66,14 +94,16 @@ def evaluate(
     per_system_sets: Sequence[str],
     config_sets: Sequence[str],
     workers: int = 4,
+    exclude_leaves: Mapping[str, Sequence[str]] | None = None,
 ) -> list[dict[str, Any]]:
     """Run nix-eval-jobs over the rooted output sets and return one object per attr.
 
     Per attribute eval errors are reported inline as objects carrying an `error`
     field and never abort the run. A non zero exit is a fatal evaluation failure
-    of the whole flake and is raised.
+    of the whole flake and is raised. `exclude_leaves` names attributes pruned
+    before recursion so they are never evaluated, fetched, or built.
     """
-    select = _build_select(systems, per_system_sets, config_sets)
+    select = _build_select(systems, per_system_sets, config_sets, exclude_leaves)
     cmd = [
         "nix", "run", "nixpkgs#nix-eval-jobs", "--",
         "--flake", flake,

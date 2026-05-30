@@ -1,4 +1,4 @@
-from atelier.rules import excluded, included, matches
+from atelier.rules import excluded, included, matches, prunable_excludes
 from atelier.types import Rules
 
 
@@ -48,3 +48,18 @@ def test_included() -> None:
 def test_excluded() -> None:
     assert excluded("legacyPackages.x86_64-linux.spotify", _RULES)
     assert not excluded("legacyPackages.x86_64-linux.caddy", _RULES)
+
+
+def test_prunable_excludes_exact_leaves_only() -> None:
+    rules = Rules(
+        systems=(),
+        include=(),
+        exclude=(
+            "legacyPackages.*.verus",
+            "legacyPackages.*.spotify",
+            "legacyPackages.*.ripe-atlas-*",  # glob leaf, stays a post filter
+            "legacyPackages.*.ocamlPackages.*",  # nested, stays a post filter
+            "nixosConfigurations.host",  # not a per system set
+        ),
+    )
+    assert prunable_excludes(rules) == {"legacyPackages": ["spotify", "verus"]}

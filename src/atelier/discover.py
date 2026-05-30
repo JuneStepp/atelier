@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from dataclasses import asdict
 
 from atelier import nix
-from atelier.rules import excluded, included, matches
+from atelier.rules import excluded, included, matches, prunable_excludes
 from atelier.types import (
     CONFIG_SETS,
     DEFAULT_RUNNER,
@@ -115,7 +115,9 @@ def discover(
     if not effective or (not per_system and not configs):
         return [], []
 
-    objects = nix.evaluate(f"{flake}#", effective, per_system, configs, workers)
+    objects = nix.evaluate(
+        f"{flake}#", effective, per_system, configs, workers, prunable_excludes(rules)
+    )
     jobs = [nix.to_job(obj) for obj in objects]
     selected = _selected(jobs, rules, effective, only)
 
@@ -124,5 +126,12 @@ def discover(
     skipped = [job for job in failed if nix.is_skippable(job.error or "")]
     genuine = [job for job in failed if not nix.is_skippable(job.error or "")]
 
+    # surface manual excludes as skipped checks, so the rule file's exclusions
+    # are visible rather than silently dropped (one entry per exclude rule)
+    excluded_skips = [
+        Skipped(system="", label=pattern, reason="excluded by rule")
+        for pattern in rules.exclude
+    ]
+
     cells = [_cell(job) for job in (*succeeded, *genuine)]
-    return _chunks(cells), [_skip(job) for job in skipped]
+    return _chunks(cells), [*(_skip(job) for job in skipped), *excluded_skips]
