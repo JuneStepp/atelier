@@ -93,9 +93,10 @@ jobs:
           paths="$(nix build "${INSTALLABLE}^*" --no-link --print-out-paths)"
           [ -n "$paths" ] || exit 0
 
-          # push to every configured backend; isolate each in a subshell so one
-          # failing cannot abort the others, and fail the step if any did
-          rc=0
+          # push to every configured backend, best-effort: each runs in its own
+          # subshell so one cannot abort the others, and a failed push only warns
+          # (the artifact is already built, so a cache upload hiccup must not fail
+          # the build)
 
           if [ -n "${ATTIC_SERVER}" ] && [ -n "${ATTIC_CACHE}" ]; then
             (
@@ -106,7 +107,7 @@ jobs:
               attic cache info "${ATTIC_CACHE}" || { echo "::warning::Attic cache unavailable, skipping"; exit 0; }
               # shellcheck disable=SC2086
               attic push "${ATTIC_CACHE}" $paths
-            ) || { echo "::warning::Attic push failed"; rc=1; }
+            ) || echo "::warning::Attic push failed"
           fi
 
           if [ -n "${CACHIX_CACHE}" ]; then
@@ -116,7 +117,7 @@ jobs:
               [ -n "${CACHIX_SIGNING_KEY:-}" ] || unset CACHIX_SIGNING_KEY
               # shellcheck disable=SC2086
               printf '%s\n' $paths | cachix push "${CACHIX_CACHE}"
-            ) || { echo "::warning::Cachix push failed"; rc=1; }
+            ) || echo "::warning::Cachix push failed"
           fi
 
           if [ -n "${NIKS3_SERVER}" ]; then
@@ -151,10 +152,8 @@ jobs:
               else
                 echo "::warning::Skipping niks3 push: OIDC needs 'id-token: write' in the caller workflow"
               fi
-            ) || { echo "::warning::niks3 push failed"; rc=1; }
+            ) || echo "::warning::niks3 push failed"
           fi
-
-          exit "$rc"
 
       - name: Upload Log
         if: ${{ always() && matrix.installable != '' }}
