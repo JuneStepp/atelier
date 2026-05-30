@@ -200,14 +200,16 @@ jobs:
         run: |
           set -euo pipefail
           printf '%s' "$SKIPPED" | jq -c '.[]' | while read -r row; do
-            # an api check-run only inherits the workflow's suite name, so prefix
-            # the name to nest like the real cells: <caller> / Atelier / Build / <attr>
+            # github prepends the run's check-suite name (the workflow, e.g.
+            # "Atelier") to an api check-run's name, so name it "Build / <attr>" to
+            # render "<workflow> / Build / <attr>", matching the native build cells
+            # (prefixing "Atelier / " here would double it to "Atelier / Atelier / ")
             jq -nc \
               --arg name "$(printf '%s' "$row" | jq -r '.label')" \
               --arg sha "$SHA" \
               --arg reason "$(printf '%s' "$row" | jq -r '.reason')" \
               --arg url "$RUN_URL" \
-              '{name: ("Atelier / Build / " + $name), head_sha: $sha, status: "completed", conclusion: "skipped",
+              '{name: ("Build / " + $name), head_sha: $sha, status: "completed", conclusion: "skipped",
                 details_url: $url, output: {title: $reason, summary: $reason}}' \
             | gh api "repos/${REPO}/check-runs" \
                 -H "Accept: application/vnd.github+json" \
