@@ -129,7 +129,7 @@ def discover(
     # surface manual excludes as skipped checks, so the rule file's exclusions
     # are visible rather than silently dropped (one entry per exclude rule)
     excluded_skips = [
-        Skipped(system="", label=pattern, reason="excluded by rule")
+        Skipped(system="", label=pattern, reason="Excluded by rule")
         for pattern in rules.exclude
     ]
 
