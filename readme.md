@@ -22,6 +22,8 @@ See check status in [my config repo](https://github.com/stepbrobd/inc) (push
 target is secretless [niks3](https://github.com/Mic92/niks3) with GHA OIDC),
 click on the green/yellow/red dot/cross associated with commits.
 
+<img width="625" height="444" alt="Image" src="https://github.com/user-attachments/assets/c516818a-68ad-4b7c-9322-553a5585e6ba" />
+
 Known limitations:
 
 - It is recommended that all users to setup a cache endpoint or all builds will
