@@ -199,17 +199,34 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
+
+          # a skipped check is posted through the rest api, so github prefixes it with
+          # only the workflow name. a native build cell instead carries its full job
+          # path "<caller> / Build / <attr>", where <caller> is the name a downstream
+          # repo gives the `uses:` call (empty when atelier runs as its own top-level
+          # workflow). to line the two up across any consumer, recover <caller> from the
+          # Discover job's check run (Skip needs Discover, so it has completed and its
+          # check run exists) and drop the "Discover" leaf. listing check runs needs only
+          # checks:read, already implied by this job's checks:write, so no consumer has to
+          # grant anything. on any failure the prefix stays empty, i.e. the historical
+          # "<workflow> / Build / <attr>" rendering, so this cannot regress.
+          prefix="$(gh api --paginate "repos/${REPO}/commits/${SHA}/check-runs" \
+            --jq '.check_runs[] | select(.app.slug == "github-actions") | .name
+                  | select((. == "Discover" or endswith(" / Discover")) and (contains("Build / ") | not))' \
+            2>/dev/null | head -n1 || true)"
+          prefix="${prefix%Discover}"
+
           printf '%s' "$SKIPPED" | jq -c '.[]' | while read -r row; do
-            # github prepends the run's check-suite name (the workflow, e.g.
-            # "Atelier") to an api check-run's name, so name it "Build / <attr>" to
-            # render "<workflow> / Build / <attr>", matching the native build cells
-            # (prefixing "Atelier / " here would double it to "Atelier / Atelier / ")
+            # name it "<caller> / Build / <attr>" so github's workflow-name prefix yields
+            # "<workflow> / <caller> / Build / <attr>", identical to the native build cells
+            # (an empty <caller> collapses to the "Build / <attr>" used on atelier's own ci)
             jq -nc \
+              --arg prefix "$prefix" \
               --arg name "$(printf '%s' "$row" | jq -r '.label')" \
               --arg sha "$SHA" \
               --arg reason "$(printf '%s' "$row" | jq -r '.reason')" \
               --arg url "$RUN_URL" \
-              '{name: ("Build / " + $name), head_sha: $sha, status: "completed", conclusion: "skipped",
+              '{name: ($prefix + "Build / " + $name), head_sha: $sha, status: "completed", conclusion: "skipped",
                 details_url: $url, output: {title: $reason, summary: $reason}}' \
             | gh api "repos/${REPO}/check-runs" \
                 -H "Accept: application/vnd.github+json" \
