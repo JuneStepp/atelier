@@ -1,6 +1,10 @@
+from pathlib import Path
 from unittest import mock
 
-from atelier.cli import _FALLBACK_WORKERS, _default_workers, _workers_for_memory
+from click.testing import CliRunner
+
+from atelier.cli import _FALLBACK_WORKERS, _default_workers, _workers_for_memory, cli
+from atelier.rules import defaults
 
 GIB = 1024**3
 
@@ -37,3 +41,47 @@ def test_default_falls_back_when_memory_undetectable() -> None:
     # os.sysconf raises on platforms/keys it does not support (e.g. Windows)
     with mock.patch("os.sysconf", side_effect=ValueError):
         assert _default_workers() == _FALLBACK_WORKERS
+
+
+def test_discover_uses_defaults_when_rule_file_missing() -> None:
+    # a repo with no atelier.toml must still evaluate, with the built-in defaults,
+    # rather than erroring on the missing file
+    runner = CliRunner()
+    with (
+        runner.isolated_filesystem(),
+        mock.patch("atelier.cli._discover.discover", return_value=([], [])) as disc,
+    ):
+        result = runner.invoke(cli, ["discover"], catch_exceptions=False)
+    assert result.exit_code == 0
+    assert disc.call_args.args[0] == defaults()
+    assert "No rule file at atelier.toml" in result.stderr
+
+
+def test_discover_uses_defaults_when_explicit_rules_file_missing() -> None:
+    # the reusable workflow always passes --rules atelier.toml explicitly (it
+    # defaults inputs.rules to that literal), so the fallback must key off the
+    # file being absent, not off whether --rules was given on the command line
+    runner = CliRunner()
+    with (
+        runner.isolated_filesystem(),
+        mock.patch("atelier.cli._discover.discover", return_value=([], [])) as disc,
+    ):
+        result = runner.invoke(
+            cli, ["discover", "--rules", "atelier.toml"], catch_exceptions=False
+        )
+    assert result.exit_code == 0
+    assert disc.call_args.args[0] == defaults()
+    assert "No rule file at atelier.toml" in result.stderr
+
+
+def test_discover_loads_an_existing_rule_file() -> None:
+    runner = CliRunner()
+    with (
+        runner.isolated_filesystem(),
+        mock.patch("atelier.cli._discover.discover", return_value=([], [])) as disc,
+    ):
+        Path("atelier.toml").write_text('systems = ["aarch64-darwin"]\n')
+        result = runner.invoke(cli, ["discover"], catch_exceptions=False)
+    assert result.exit_code == 0
+    assert disc.call_args.args[0].systems == ("aarch64-darwin",)
+    assert "No rule file" not in result.stderr

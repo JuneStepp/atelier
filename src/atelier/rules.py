@@ -13,20 +13,33 @@ from atelier.types import (
 _GLOB_CHARS = frozenset("*?[]")
 
 
-def load(path: Path) -> Rules:
-    """Read a rule file, falling back to defaults for any omitted key.
+def _build(data: dict) -> Rules:
+    """Build ``Rules`` from parsed toml, falling back to defaults for omitted keys.
 
     The official cache is always folded into ``substituters`` (a set, so a user
     who also lists it does not duplicate it), so cache-status checks work even
     when the rule file names no cache of its own.
     """
-    data = tomllib.loads(path.read_text())
     return Rules(
         systems=tuple(data.get("systems", DEFAULT_SYSTEMS)),
         include=tuple(data.get("include", DEFAULT_INCLUDE)),
         exclude=tuple(data.get("exclude", ())),
         substituters=frozenset(data.get("substituters", ())) | {NIXOS_CACHE},
     )
+
+
+def load(path: Path) -> Rules:
+    """Read a rule file, falling back to defaults for any omitted key."""
+    return _build(tomllib.loads(path.read_text()))
+
+
+def defaults() -> Rules:
+    """The rules used when no rule file exists, every key at its built-in default.
+
+    Identical to loading an empty rule file, so a missing ``atelier.toml`` and an
+    empty one evaluate the same flake.
+    """
+    return _build({})
 
 
 def matches(pattern: str, path: str) -> bool:

@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from atelier.rules import excluded, included, load, matches, prunable_excludes
-from atelier.types import Rules
+from atelier.rules import defaults, excluded, included, load, matches, prunable_excludes
+from atelier.types import DEFAULT_INCLUDE, DEFAULT_SYSTEMS, NIXOS_CACHE, Rules
 
 
 def test_single_level_star_stops_at_dot() -> None:
@@ -53,6 +53,20 @@ def test_excluded() -> None:
 
 
 _NIXOS_CACHE = "https://cache.nixos.org"
+
+
+def test_defaults_equal_an_empty_rule_file(tmp_path: Path) -> None:
+    # the no-file fallback must be identical to loading a rule file that sets no
+    # keys, so "no atelier.toml" and "empty atelier.toml" evaluate the same flake
+    assert defaults() == load(_write(tmp_path, ""))
+
+
+def test_defaults_carry_every_built_in() -> None:
+    rules = defaults()
+    assert rules.systems == DEFAULT_SYSTEMS
+    assert rules.include == DEFAULT_INCLUDE
+    assert rules.exclude == ()
+    assert rules.substituters == frozenset({NIXOS_CACHE})
 
 
 def test_load_substituters_default_to_nixos_cache(tmp_path: Path) -> None:

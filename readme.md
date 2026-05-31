@@ -3,9 +3,10 @@
 The real CI for Nix, now on GitHub Actions.
 
 Atelier evaluates a flake and fans out one native build per derivation across
-GitHub-hosted runners, each surfaced as its own check run with live logs. A rule
-file `atelier.toml` at the repo root selects what to build with dotted glob
-patterns (similar to garnix, rip) matched against the full flake attribute path.
+GitHub-hosted runners, each surfaced as its own check run with live logs. An
+optional rule file `atelier.toml` at the repo root selects what to build with
+dotted glob patterns (similar to garnix, rip) matched against the full flake
+attribute path; with no rule file, the built-in defaults apply.
 
 See check status in [my config repo](https://github.com/stepbrobd/inc) (push
 target is secretless [niks3](https://github.com/Mic92/niks3) with GHA OIDC),
@@ -27,8 +28,9 @@ Known limitations:
 
 ## Rule file
 
-`atelier.toml` has four keys, all optional. An omitted key falls back to its
-default, so an empty file builds the defaults below.
+`atelier.toml` is itself optional, as are its four keys. A missing rule file (or
+an omitted key) falls back to the defaults below, so a repository with no
+`atelier.toml` at all builds the defaults.
 
 | key            | type            | default                                   | meaning                                              |
 | -------------- | --------------- | ----------------------------------------- | ---------------------------------------------------- |
@@ -150,8 +152,9 @@ from the published flake, so your flake stays entirely your own.
 
 ### Call the reusable workflow (recommended)
 
-Add an `atelier.toml` to your repository root, then a thin workflow that calls
-atelier:
+Add a thin workflow that calls atelier (optionally with an `atelier.toml` at
+your repository root to customize what is built; without one, the built-in
+defaults are used):
 
 ```yaml
 # .github/workflows/ci.yaml

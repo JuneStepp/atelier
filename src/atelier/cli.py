@@ -6,7 +6,7 @@ from pathlib import Path
 import click
 
 from atelier import discover as _discover
-from atelier.rules import load
+from atelier.rules import defaults, load
 
 _PROG = "atelier"
 _CTX = {"help_option_names": ["-h", "--help"]}
@@ -50,11 +50,11 @@ def cli() -> None:
 @click.option(
     "--rules",
     "rules_path",
-    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    type=click.Path(dir_okay=False, path_type=Path),
     default="atelier.toml",
     envvar="ATELIER_RULES",
     show_default=True,
-    help="Rule file path.",
+    help="Rule file path; if absent, built-in defaults are used.",
 )
 @click.option(
     "--flake",
@@ -92,8 +92,18 @@ def discover(
 
     Outputs are written to $GITHUB_OUTPUT when set (as `chunks` and `skipped`),
     otherwise printed to stdout.
+
+    The rule file is optional: when it is absent the flake is evaluated with the
+    built-in defaults, so a repository need not ship an `atelier.toml`.
     """
-    rules = load(rules_path)
+    if rules_path.exists():
+        rules = load(rules_path)
+    else:
+        click.echo(
+            f"::notice::No rule file at {rules_path}, evaluating with built-in defaults",
+            err=True,
+        )
+        rules = defaults()
     enabled = [part.strip() for part in systems.split(",") if part.strip()]
     chunks, skipped = _discover.discover(rules, enabled, only or None, workers, flake)
 
