@@ -7,6 +7,24 @@ GitHub-hosted runners, each surfaced as its own check run with live logs. A rule
 file `atelier.toml` at the repo root selects what to build with dotted glob
 patterns (similar to garnix, rip) matched against the full flake attribute path.
 
+See check status in [my config repo](https://github.com/stepbrobd/inc) (push
+target is secretless [niks3](https://github.com/Mic92/niks3) with GHA OIDC),
+click on the green/yellow/red dot/cross associated with commits.
+
+Known limitations:
+
+- It is recommended that all users to setup a cache endpoint or all builds will
+  be lost
+- Matrix jobs are independent, duplicate builds are expected. See more
+  [here](https://github.com/stepbrobd/atelier/issues/1)
+- GitHub app created PRs will not trigger build. See example
+  [here](https://github.com/stepbrobd/inc/pull/200/checks). Do note that you can
+  invoke the action with in automated jobs like
+  [this](https://github.com/stepbrobd/inc/blob/e4e29f450f9614820aa1ee4cff9e18d1f13e9232/.github/workflows/bump.yaml#L146-L151)
+  but the check status will only be associated with the commit, not the PR.
+  However dependabot created PRs
+  [will work](https://github.com/stepbrobd/inc/pull/201/checks)
+
 ## Rule file
 
 `atelier.toml` has four keys, all optional. An omitted key falls back to its
