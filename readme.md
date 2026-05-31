@@ -1,5 +1,7 @@
 # Atelier
 
+<img width="282" height="272" alt="Image" src="https://github.com/user-attachments/assets/f73ea161-e210-4b5e-9f37-12c03885be39" />
+
 The real CI for Nix, now on GitHub Actions!
 
 Inspired by [nixpkgs-review-gha](https://github.com/Defelo/nixpkgs-review-gha)
