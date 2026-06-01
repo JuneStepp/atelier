@@ -194,7 +194,7 @@ permissions:
   # id-token: write
 
 jobs:
-  atelier:
+  Atelier:
     uses: stepbrobd/atelier/.github/workflows/discover.yaml@master
 
     # uncomment the ones you need:
@@ -219,6 +219,42 @@ _your_ repository automatically, so your cache name, token, and the pushes all
 stay yours. Pin `@master` to track the latest, or a tag/SHA to pin a version.
 Make `Gate` the single required status in branch protection: it stays green
 whether the matrix is empty, every build passes, or attributes are skipped.
+
+## Custom Nix installer
+
+By default Atelier installs upstream Nix with `nixos/nix-installer-action`. Two
+optional inputs change that without forking:
+
+| input             | type   | default | meaning                                                             |
+| ----------------- | ------ | ------- | ------------------------------------------------------------------- |
+| `install-command` | string | `""`    | Shell command that installs Nix, when set it replaces the installer |
+| `extra-conf`      | string | `""`    | Extra `nix.conf` lines appended after Atelier's required settings   |
+
+Atelier separates installing Nix from configuring it. Whichever installer runs,
+Atelier applies its own required `nix.conf` afterwards (the GitHub access token,
+`experimental-features = nix-command flakes`, the build directory, the target
+`system`, and the sandbox mode), then appends your `extra-conf` last. So a
+custom installer still ends up with a correctly configured daemon, and adding
+settings is independent of the installer choice. Use Nix's `extra-` prefixes to
+add to a list setting rather than replace it.
+
+The inputs apply to every job, so discovery and every build cell use the same
+Nix. Install Lix instead of upstream Nix and enable the pipe operator:
+
+```yaml
+jobs:
+  Atelier:
+    uses: stepbrobd/atelier/.github/workflows/discover.yaml@master
+    with:
+      install-command: curl -sSf -L https://install.lix.systems/lix | sh -s -- install --no-confirm
+      extra-conf: |
+        extra-experimental-features = pipe-operators
+```
+
+A custom `install-command` runs on a fresh runner, so it must be non-interactive
+and install a working multi-user daemon. Atelier reloads the daemon after
+applying its configuration. If your installer does not set one up, the build
+settings will not take effect.
 
 ### Fork it (alternative)
 
