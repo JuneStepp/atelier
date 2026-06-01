@@ -8,6 +8,12 @@ inputs:
   reclaim:
     description: Reclaim runner disk space for large builds
     default: "true"
+  install-command:
+    description: Shell command that installs Nix; empty uses the built-in installer
+    default: ""
+  extra-conf:
+    description: Extra nix.conf lines appended after the required settings
+    default: ""
 
 runs:
   using: composite
@@ -44,22 +50,83 @@ runs:
           /Users/runner/Library/Developer/CoreSimulator \
           /Users/runner/hostedtoolcache &
 
+    - name: Compute Nix Configuration
+      id: conf
+      shell: bash
+      env:
+        SYSTEM: ${{ inputs.system }}
+        SANDBOX: ${{ runner.os == 'macOS' && 'relaxed' || 'true' }}
+        EXTRA_CONF: ${{ inputs.extra-conf }}
+      run: |
+        set -euo pipefail
+        # the nix.conf lines that apply whichever installer ran, so a custom
+        # installer gets the same build settings as the built-in one. the secret
+        # access-tokens line is added directly by each consumer below, never
+        # through this output. build-dir in /nix works around nothing-but-nix
+        # issue 18.
+        {
+          echo 'conf<<__ATELIER_NIX_CONF__'
+          echo "accept-flake-config = true"
+          echo "experimental-features = nix-command flakes"
+          echo "build-dir = /nix/build"
+          echo "system = ${SYSTEM}"
+          echo "sandbox = ${SANDBOX}"
+          # explicit if, not `[ -n ] && printf`, so an empty value does not trip
+          # set -e on the trailing conditional
+          if [ -n "${EXTRA_CONF}" ]; then
+            printf '%s\n' "${EXTRA_CONF}"
+          fi
+          echo '__ATELIER_NIX_CONF__'
+        } >> "$GITHUB_OUTPUT"
+
     - name: Install Nix
+      if: ${{ inputs.install-command == '' }}
       uses: nixos/nix-installer-action@main
       with:
-        # build-dir in /nix works around nothing-but-nix issue 18
+        # authenticate github api calls so flake fetches (github: refs, the
+        # nixpkgs registry, the niks3 install) get the 5000/hr token limit
+        # instead of the 60/hr unauthenticated one shared across runner ips,
+        # which 403s intermittently; the installer's own github-token does not
+        # configure this for later nix invocations
         extra-conf: |
-          # authenticate github api calls so flake fetches (github: refs, the
-          # nixpkgs registry, the niks3 install) get the 5000/hr token limit
-          # instead of the 60/hr unauthenticated one shared across runner ips,
-          # which 403s intermittently; the installer's own github-token does not
-          # configure this for later nix invocations
           access-tokens = github.com=${{ github.token }}
-          accept-flake-config = true
-          experimental-features = nix-command flakes
-          build-dir = /nix/build
-          system = ${{ inputs.system }}
-          sandbox = ${{ runner.os == 'macOS' && 'relaxed' || 'true' }}
+          ${{ steps.conf.outputs.conf }}
+
+    - name: Install Nix (Custom)
+      if: ${{ inputs.install-command != '' }}
+      shell: bash
+      env:
+        # the consumer-supplied installer command, passed via env (not
+        # interpolated into the script body) so it cannot break out of the run
+        INSTALL_COMMAND: ${{ inputs.install-command }}
+      run: |
+        set -euo pipefail
+        bash -c "${INSTALL_COMMAND}"
+
+    - name: Configure Nix (Custom)
+      if: ${{ inputs.install-command != '' }}
+      shell: bash
+      env:
+        # access-tokens injected here, not via the shared step output, so the
+        # token never lands in a step output; see the built-in install step
+        GH_TOKEN: ${{ github.token }}
+        NIX_CONF: ${{ steps.conf.outputs.conf }}
+      run: |
+        set -euo pipefail
+        # a custom installer wrote its own /etc/nix/nix.conf, so append atelier's
+        # required settings and reload the daemon for the build-time ones
+        # (sandbox, system, build-dir) to take effect
+        {
+          echo "access-tokens = github.com=${GH_TOKEN}"
+          printf '%s\n' "${NIX_CONF}"
+        } | sudo tee -a /etc/nix/nix.conf >/dev/null
+        if [ "${RUNNER_OS}" = "macOS" ]; then
+          sudo launchctl kickstart -k system/org.nixos.nix-daemon \
+            || echo "::warning::Could not reload nix-daemon, build settings may not apply"
+        else
+          sudo systemctl restart nix-daemon \
+            || echo "::warning::Could not restart nix-daemon, build settings may not apply"
+        fi
 
     - name: Create Build Dir
       shell: bash
