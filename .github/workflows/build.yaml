@@ -118,7 +118,9 @@ jobs:
           if [ -n "${ATTIC_SERVER}" ] && [ -n "${ATTIC_CACHE}" ]; then
             (
               set -euo pipefail
-              nix profile add nixpkgs#attic-client
+              # lix only has 'install', on cppnix it is a deprecated alias for
+              # 'add'. revert to 'add' once lix supports 'add'
+              nix profile install nixpkgs#attic-client
               attic login default "${ATTIC_SERVER}" "${ATTIC_TOKEN}"
               # a missing or unreachable cache is a soft skip, not a build failure
               attic cache info "${ATTIC_CACHE}" || { echo "::warning::Attic cache unavailable, skipping"; exit 0; }
@@ -132,7 +134,9 @@ jobs:
           if [ -n "${CACHIX_CACHE}" ]; then
             (
               set -euo pipefail
-              nix profile add nixpkgs#cachix
+              # lix only has 'install', on cppnix it is a deprecated alias for
+              # 'add'. revert to 'add' once lix supports 'add'
+              nix profile install nixpkgs#cachix
               [ -n "${CACHIX_SIGNING_KEY:-}" ] || unset CACHIX_SIGNING_KEY
               # shellcheck disable=SC2086
               printf '%s\n' $paths | cachix push "${CACHIX_CACHE}"
@@ -146,7 +150,9 @@ jobs:
               set -euo pipefail
               # nixpkgs niks3 lags at 1.4.0 (no --auth-token-{path,script})
               # use my pinned niks3
-              nix profile add github:stepbrobd/inc#niks3
+              # lix only has 'install', on cppnix it is a deprecated alias for
+              # 'add'. revert to 'add' once lix supports 'add'
+              nix profile install github:stepbrobd/inc#niks3
               if [ -n "${NIKS3_TOKEN:-}" ]; then
                 # token auth: write the secret to a private file, pass its path
                 tok="$(mktemp)"
