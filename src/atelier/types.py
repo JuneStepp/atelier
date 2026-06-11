@@ -29,6 +29,9 @@ PER_SYSTEM_SETS: Final[frozenset[str]] = frozenset(
 CONFIG_SETS: Final[frozenset[str]] = frozenset(
     {"nixosConfigurations", "darwinConfigurations"}
 )
+# output sets whose per system attribute is itself the derivation, addressed as
+# <set>.<system> with nothing below it (the flake schema's formatter)
+LEAF_SETS: Final[frozenset[str]] = frozenset({"formatter"})
 
 # github caps a single matrix at 256 jobs, the matrix is chunked to stay under it
 MATRIX_CHUNK: Final[int] = 256

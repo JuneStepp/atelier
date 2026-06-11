@@ -40,6 +40,21 @@ def test_error_without_system_field_derives_from_path() -> None:
     assert job.error == "boom"
 
 
+def test_formatter_leaf_derives_system_and_installable() -> None:
+    # a leaf set roots the derivation at "<set>.<system>", so attrPath has a
+    # single element and the system comes from the path's second segment; the
+    # "system" field is omitted so the test proves the path derivation
+    job = to_job(
+        {
+            "attrPath": ["formatter.x86_64-linux"],
+            "drvPath": "/nix/store/f.drv",
+        }
+    )
+    assert job.path == "formatter.x86_64-linux"
+    assert job.system == "x86_64-linux"
+    assert job.installable == ".#formatter.x86_64-linux"
+
+
 def test_config_uses_toplevel_installable() -> None:
     job = to_job(
         {
@@ -156,13 +171,26 @@ def test_build_select_rejects_unallowlisted_values() -> None:
         _build_select(['x"; evil; "y'], ["legacyPackages"], [])
     with pytest.raises(ValueError, match="unknown output set"):
         _build_select(["x86_64-linux"], ["evil"], [])
+    with pytest.raises(ValueError, match="unknown output set"):
+        _build_select(["x86_64-linux"], [], [], ["evil"])
 
 
 def test_build_select_injects_allowlisted_lists() -> None:
-    expr = _build_select(["x86_64-linux"], ["legacyPackages"], ["nixosConfigurations"])
+    expr = _build_select(
+        ["x86_64-linux"], ["legacyPackages"], ["nixosConfigurations"], ["formatter"]
+    )
     assert 'systems = [ "x86_64-linux" ]' in expr
     assert 'perSystemSets = [ "legacyPackages" ]' in expr
     assert 'configSets = [ "nixosConfigurations" ]' in expr
+    assert 'leafSets = [ "formatter" ]' in expr
+
+
+def test_build_select_guards_leaf_derivations() -> None:
+    # a non derivation leaf value must throw per attribute, not be recursed
+    # into (its children's 3-segment paths could never match "formatter.*")
+    expr = _build_select(["x86_64-linux"], [], [], ["formatter"])
+    assert 'if (v.type or null) == "derivation" then v' in expr
+    assert "is not a derivation" in expr
 
 
 def test_build_select_prunes_excluded_leaves() -> None:
@@ -170,7 +198,9 @@ def test_build_select_prunes_excluded_leaves() -> None:
         ["x86_64-linux"],
         ["legacyPackages"],
         [],
-        {"legacyPackages": {"*": ["spotify", "verus"], "aarch64-darwin": ["bird3"]}},
+        exclude_leaves={
+            "legacyPackages": {"*": ["spotify", "verus"], "aarch64-darwin": ["bird3"]}
+        },
     )
     assert "removeAttrs" in expr
     assert '"*" = [ "spotify" "verus" ];' in expr
@@ -180,7 +210,10 @@ def test_build_select_prunes_excluded_leaves() -> None:
 def test_build_select_escapes_exclude_leaves() -> None:
     # a crafted leaf name must stay inside its nix string, not break out
     expr = _build_select(
-        ["x86_64-linux"], ["legacyPackages"], [], {"legacyPackages": {"*": ['evil"; x']}}
+        ["x86_64-linux"],
+        ["legacyPackages"],
+        [],
+        exclude_leaves={"legacyPackages": {"*": ['evil"; x']}},
     )
     assert '"evil\\"; x"' in expr
 
@@ -189,4 +222,9 @@ def test_build_select_rejects_unknown_exclude_set() -> None:
     import pytest
 
     with pytest.raises(ValueError, match="unknown output set"):
-        _build_select(["x86_64-linux"], ["legacyPackages"], [], {"bogus": {"*": ["x"]}})
+        _build_select(
+            ["x86_64-linux"],
+            ["legacyPackages"],
+            [],
+            exclude_leaves={"bogus": {"*": ["x"]}},
+        )

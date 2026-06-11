@@ -8,6 +8,7 @@ from atelier.rules import excluded, included, matches, prunable_excludes
 from atelier.types import (
     CONFIG_SETS,
     DEFAULT_RUNNER,
+    LEAF_SETS,
     MATRIX_CHUNK,
     PER_SYSTEM_SETS,
     RUNNERS,
@@ -36,15 +37,20 @@ def _effective_systems(rules: Rules, enabled: Sequence[str]) -> list[str]:
     return out
 
 
-def _output_sets(rules: Rules) -> tuple[list[str], list[str]]:
-    """Split the include globs' leading segments into per system and config sets."""
+def _output_sets(rules: Rules) -> tuple[list[str], list[str], list[str]]:
+    """Split the include globs' leading segments into per system, config, and leaf sets."""
     leading = sorted({pattern.split(".")[0] for pattern in rules.include})
     per_system = [s for s in leading if s in PER_SYSTEM_SETS]
     configs = [s for s in leading if s in CONFIG_SETS]
+    leaves = [s for s in leading if s in LEAF_SETS]
     for output in leading:
-        if output not in PER_SYSTEM_SETS and output not in CONFIG_SETS:
+        if (
+            output not in PER_SYSTEM_SETS
+            and output not in CONFIG_SETS
+            and output not in LEAF_SETS
+        ):
             _warn(f"Unknown output set {output} in include, skipping")
-    return per_system, configs
+    return per_system, configs, leaves
 
 
 def _selected(
@@ -119,8 +125,8 @@ def discover(
     before either.
     """
     effective = _effective_systems(rules, enabled_systems)
-    per_system, configs = _output_sets(rules)
-    if not effective or (not per_system and not configs):
+    per_system, configs, leaves = _output_sets(rules)
+    if not effective or (not per_system and not configs and not leaves):
         return [], []
 
     objects = nix.evaluate(
@@ -128,6 +134,7 @@ def discover(
         effective,
         per_system,
         configs,
+        leaves,
         workers,
         prunable_excludes(rules),
         rules.substituters,

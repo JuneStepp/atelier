@@ -37,12 +37,18 @@ def test_unknown_system_dropped() -> None:
 def test_output_sets_split() -> None:
     rules = Rules(
         systems=(),
-        include=("legacyPackages.*.*", "nixosConfigurations.*", "devShells.*.default"),
+        include=(
+            "legacyPackages.*.*",
+            "nixosConfigurations.*",
+            "devShells.*.default",
+            "formatter.*",
+        ),
         exclude=(),
     )
-    per_system, configs = _output_sets(rules)
+    per_system, configs, leaves = _output_sets(rules)
     assert per_system == ["devShells", "legacyPackages"]
     assert configs == ["nixosConfigurations"]
+    assert leaves == ["formatter"]
 
 
 def test_selected_filters_excludes_systems_and_dedups() -> None:
@@ -121,6 +127,36 @@ def test_cached_attr_is_skipped_not_built(monkeypatch) -> None:
     built = [c["label"] for chunk in chunks for c in json.loads(chunk.cells)["include"]]
     assert built == ["packages.x86_64-linux.fresh"]
     assert any(skip.label == "packages.x86_64-linux.done" for skip in skipped)
+
+
+def test_formatter_is_discovered_and_built(monkeypatch) -> None:
+    # the schema's formatter is a derivation directly under <set>.<system>, so
+    # it must surface as a build cell like any package, not be dropped as an
+    # unknown output set
+    objects = [
+        {
+            "attrPath": ["formatter.x86_64-linux"],
+            "drvPath": "/nix/store/f.drv",
+            "system": "x86_64-linux",
+            "cacheStatus": "notBuilt",
+        },
+    ]
+    seen: dict[str, object] = {}
+
+    def fake_evaluate(flake, systems, per_system_sets, config_sets, leaf_sets, *a, **kw):
+        # pin the discover -> evaluate threading: a stub that ignored its
+        # arguments would stay green even if discover stopped passing leaves
+        seen["leaf_sets"] = leaf_sets
+        return objects
+
+    monkeypatch.setattr(nix, "evaluate", fake_evaluate)
+    rules = Rules(systems=("x86_64-linux",), include=("formatter.*",), exclude=())
+    chunks, _skipped = discover(rules, [], None, 2)
+    assert seen["leaf_sets"] == ["formatter"]
+    built = [c for chunk in chunks for c in json.loads(chunk.cells)["include"]]
+    assert [c["label"] for c in built] == ["formatter.x86_64-linux"]
+    assert built[0]["installable"] == ".#formatter.x86_64-linux"
+    assert built[0]["system"] == "x86_64-linux"
 
 
 def test_single_chunk_named_build() -> None:

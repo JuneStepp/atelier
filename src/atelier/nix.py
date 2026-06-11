@@ -4,7 +4,14 @@ import subprocess
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
-from atelier.types import CONFIG_SETS, PER_SYSTEM_SETS, RUNNERS, SKIP_PATTERN, Job
+from atelier.types import (
+    CONFIG_SETS,
+    LEAF_SETS,
+    PER_SYSTEM_SETS,
+    RUNNERS,
+    SKIP_PATTERN,
+    Job,
+)
 
 _SKIP_RE = re.compile(SKIP_PATTERN, re.IGNORECASE)
 
@@ -12,6 +19,7 @@ _SKIP_RE = re.compile(SKIP_PATTERN, re.IGNORECASE)
 # nix-eval-jobs to recurse
 #   per system sets become   "<set>.<system>" = flake.<set>.<system>
 #   config sets become       "<set>"          = mapAttrs toplevel flake.<set>
+#   leaf sets become         "<set>.<system>" = flake.<set>.<system> (a drv)
 # the @TOKENS@ are replaced with allowlisted nix string lists, never raw input
 _SELECT_TEMPLATE = r"""flake:
 let
@@ -19,6 +27,7 @@ let
   systems = [ @SYSTEMS@ ];
   perSystemSets = [ @PER_SYSTEM@ ];
   configSets = [ @CONFIG@ ];
+  leafSets = [ @LEAF@ ];
   # exact leaf names per set to drop before recursing, so nix-eval-jobs never
   # forces (and never fetches or builds) a manually excluded attribute
   excludes = { @EXCLUDES@ };
@@ -34,7 +43,21 @@ let
         then acc // { "${set}" = builtins.mapAttrs (_: c: c.config.system.build.toplevel) o.${set}; }
         else acc
       ) { } configSets;
-in ps // cs
+  # a leaf set's system attribute is the derivation itself, so it roots
+  # directly with nothing below it to recurse into or prune. a non derivation
+  # value (a schema violation) throws lazily so it surfaces as that attribute's
+  # eval error instead of being recursed into and silently dropped
+  ls = builtins.foldl' (acc: set:
+        builtins.foldl' (a: sys:
+          if (o ? ${set}) && (o.${set} ? ${sys})
+          then a // { "${set}.${sys}" =
+            let v = o.${set}.${sys}; in
+            if (v.type or null) == "derivation" then v
+            else throw "flake output ${set}.${sys} is not a derivation"; }
+          else a
+        ) acc systems
+      ) { } leafSets;
+in ps // cs // ls
 """
 
 
@@ -71,6 +94,7 @@ def _build_select(
     systems: Sequence[str],
     per_system_sets: Sequence[str],
     config_sets: Sequence[str],
+    leaf_sets: Sequence[str] = (),
     exclude_leaves: Mapping[str, Mapping[str, Sequence[str]]] | None = None,
 ) -> str:
     # fail closed if an unallowlisted value ever reaches the embedded nix
@@ -79,8 +103,12 @@ def _build_select(
     for system in systems:
         if system not in RUNNERS:
             raise ValueError(f"unknown system {system!r}")
-    for output in (*per_system_sets, *config_sets):
-        if output not in PER_SYSTEM_SETS and output not in CONFIG_SETS:
+    for output in (*per_system_sets, *config_sets, *leaf_sets):
+        if (
+            output not in PER_SYSTEM_SETS
+            and output not in CONFIG_SETS
+            and output not in LEAF_SETS
+        ):
             raise ValueError(f"unknown output set {output!r}")
     leaves = exclude_leaves or {}
     # set names are allowlisted, leaf names are escaped (they are arbitrary)
@@ -91,6 +119,7 @@ def _build_select(
         _SELECT_TEMPLATE.replace("@SYSTEMS@", _nix_list(systems))
         .replace("@PER_SYSTEM@", _nix_list(per_system_sets))
         .replace("@CONFIG@", _nix_list(config_sets))
+        .replace("@LEAF@", _nix_list(leaf_sets))
         .replace("@EXCLUDES@", _nix_excludes(leaves))
     )
 
@@ -139,6 +168,7 @@ def evaluate(
     systems: Sequence[str],
     per_system_sets: Sequence[str],
     config_sets: Sequence[str],
+    leaf_sets: Sequence[str] = (),
     workers: int = 4,
     exclude_leaves: Mapping[str, Mapping[str, Sequence[str]]] | None = None,
     substituters: Iterable[str] = (),
@@ -151,7 +181,9 @@ def evaluate(
     before recursion so they are never evaluated, fetched, or built.
     `substituters` are the caches each attribute's cache status is checked against.
     """
-    select = _build_select(systems, per_system_sets, config_sets, exclude_leaves)
+    select = _build_select(
+        systems, per_system_sets, config_sets, leaf_sets, exclude_leaves
+    )
     cmd = _eval_command(flake, select, workers, substituters)
     # capture stdout (the json results) but let stderr stream to the log live,
     # so fetches, getFlake calls, and per-attr eval progress are visible instead
@@ -165,8 +197,8 @@ def evaluate(
 def to_job(obj: dict[str, Any]) -> Job:
     """Normalise one nix-eval-jobs object into a `Job`.
 
-    The rooted key carries the set (and system, for per system sets) so the
-    full attribute path and the buildable installable reconstruct from attrPath.
+    The rooted key carries the set (and system, for per system and leaf sets) so
+    the full attribute path and the buildable installable reconstruct from attrPath.
     """
     path = ".".join(obj.get("attrPath") or [])
     drv = obj.get("drvPath")
