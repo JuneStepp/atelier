@@ -109,7 +109,6 @@ jobs:
         uses: $/.github/actions/atelier
         with: |
           system: x86_64-linux
-          reclaim: "false"
           install-command: ${{ inputs.install-command }}
           extra-conf: ${{ inputs.extra-conf }}
           # the rule file drives the pull cache (its substituters + trusted-public-
