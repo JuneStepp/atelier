@@ -5,9 +5,6 @@ inputs:
   system:
     description: Nix system to build for
     required: true
-  reclaim:
-    description: Reclaim runner disk space for large builds
-    default: "true"
   install-command:
     description: Shell command that installs Nix; empty uses the built-in installer
     default: ""
@@ -39,38 +36,6 @@ runs:
       run: |
         set -euo pipefail
         bash -c "${PRE_INSTALL}"
-
-    - name: Reclaim Disk Space (Linux)
-      if: ${{ inputs.reclaim == 'true' && runner.os == 'Linux' }}
-      uses: wimpysworld/nothing-but-nix@687c797a730352432950c707ab493fcc951818d7 # v10
-      with:
-        hatchet-protocol: rampage
-
-    - name: Reclaim Disk Space (Darwin)
-      if: ${{ inputs.reclaim == 'true' && runner.os == 'macOS' }}
-      shell: bash
-      run: |
-        echo "::group::Disk space (before)"
-        sudo df -h
-        echo "::endgroup::"
-
-        echo "::group::Disable mds"
-        sudo mdutil -i off -a || echo "mdutil failed"
-        sudo launchctl unload -w /System/Library/LaunchDaemons/com.apple.metadata.mds.plist \
-          || echo "launchctl unload failed"
-        echo "::endgroup::"
-
-        echo "Background space expansion started, /nix will grow as space becomes available"
-        sudo rm -rf \
-          /Applications/Xcode_* \
-          /Library/Developer/CoreSimulator \
-          /Library/Frameworks \
-          /Users/runner/.dotnet \
-          /Users/runner/.rustup \
-          /Users/runner/Library/Android \
-          /Users/runner/Library/Caches \
-          /Users/runner/Library/Developer/CoreSimulator \
-          /Users/runner/hostedtoolcache &
 
     - name: Compute Nix Configuration
       id: conf
@@ -174,16 +139,6 @@ runs:
     - name: Create Build Dir
       shell: bash
       run: sudo mkdir -p /nix/build
-
-    - name: Report Disk Space (Darwin)
-      if: ${{ inputs.reclaim == 'true' && runner.os == 'macOS' }}
-      uses: srz-zumix/post-run-action@42756f7452b9439d0365b7e087b2c364f54209c6 # v3.0.2
-      with:
-        shell: bash -e {0}
-        post-run: |
-          echo "::group::Disk space (after)"
-          sudo df -h
-          echo "::endgroup::"
 
     - name: Post Install Hook
       # last step, so nix is installed and configured (any installer) and ready
