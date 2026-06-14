@@ -14,6 +14,9 @@ inputs:
   extra-conf:
     description: Extra nix.conf lines appended after the required settings
     default: ""
+  rules:
+    description: Atelier rule file whose substituters and trusted-public-keys are injected into nix.conf
+    default: atelier.toml
 
 runs:
   using: composite
@@ -57,6 +60,7 @@ runs:
         SYSTEM: ${{ inputs.system }}
         SANDBOX: ${{ runner.os == 'macOS' && 'relaxed' || 'true' }}
         EXTRA_CONF: ${{ inputs.extra-conf }}
+        RULES: ${{ inputs.rules }}
       run: |
         set -euo pipefail
         # the nix.conf lines that apply whichever installer ran, so a custom
@@ -64,6 +68,16 @@ runs:
         # access-tokens line is added directly by each consumer below, never
         # through this output. build-dir in /nix works around nothing-but-nix
         # issue 18.
+        #
+        # the pull cache is read from the rule file (the same substituters that
+        # drive discovery's cache-status check) and injected here
+        subs=""
+        keys=""
+        if [ -f "${RULES}" ]; then
+          parsed="$(python3 -c 'import sys, tomllib; d = tomllib.load(open(sys.argv[1], "rb")); print(" ".join(d.get("substituters") or [])); print(" ".join(d.get("trusted-public-keys") or []))' "${RULES}" 2>/dev/null || true)"
+          subs="$(printf '%s' "${parsed}" | sed -n '1p')"
+          keys="$(printf '%s' "${parsed}" | sed -n '2p')"
+        fi
         {
           echo 'conf<<__ATELIER_NIX_CONF__'
           echo "accept-flake-config = true"
@@ -71,6 +85,12 @@ runs:
           echo "build-dir = /nix/build"
           echo "system = ${SYSTEM}"
           echo "sandbox = ${SANDBOX}"
+          if [ -n "${subs}" ]; then
+            echo "extra-substituters = ${subs}"
+          fi
+          if [ -n "${keys}" ]; then
+            echo "extra-trusted-public-keys = ${keys}"
+          fi
           # explicit if, not `[ -n ] && printf`, so an empty value does not trip
           # set -e on the trailing conditional
           if [ -n "${EXTRA_CONF}" ]; then

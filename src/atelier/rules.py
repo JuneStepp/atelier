@@ -25,6 +25,7 @@ def _build(data: dict) -> Rules:
         include=tuple(data.get("include", DEFAULT_INCLUDE)),
         exclude=tuple(data.get("exclude", ())),
         substituters=frozenset(data.get("substituters", ())) | {NIXOS_CACHE},
+        trusted_public_keys=frozenset(data.get("trusted-public-keys", ())),
     )
 
 

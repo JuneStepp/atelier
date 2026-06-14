@@ -130,6 +130,9 @@ jobs:
           reclaim: "false"
           install-command: ${{ inputs.install-command }}
           extra-conf: ${{ inputs.extra-conf }}
+          # the rule file drives the pull cache (its substituters + trusted-public-
+          # keys), injected into nix.conf so every nix install can substitute it
+          rules: ${{ inputs.rules || 'atelier.toml' }}
 
       - name: Generate Matrix
         id: gen
@@ -184,6 +187,7 @@ jobs:
     with:
       cells: ${{ matrix.cells }}
       push: ${{ inputs.push || false }}
+      rules: ${{ inputs.rules || 'atelier.toml' }}
       install-command: ${{ inputs.install-command }}
       extra-conf: ${{ inputs.extra-conf }}
     secrets:

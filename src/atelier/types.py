@@ -65,6 +65,8 @@ class Rules:
     # so duplicates collapse. `load` always folds in the official cache. An
     # attribute already in any of these is skipped rather than built and pushed.
     substituters: frozenset[str] = frozenset()
+    # substituter public keys
+    trusted_public_keys: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)

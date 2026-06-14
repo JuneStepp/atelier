@@ -9,6 +9,9 @@
 systems = ["x86_64-linux", "aarch64-linux", "aarch64-darwin"]
 include = ["packages.*.*", "devShells.*.default"]
 
-# caches checked before building; an attribute already in any of them is skipped
-# rather than built and pushed. the official cache is always checked on top.
+# caches checked before building 
+# an attribute already in any of them is skipped rather than built and pushed
+# note that the official nixos cache is always checked on top
+# both lists are also injected into nix.conf at install time
 substituters = ["https://cache.ysun.co"]
+trusted-public-keys = ["cache.ysun.co-1:WxPYwT5g3kt9XhUhHPpNLZKI9HIOsVVAuqSHpok8Qt4="]

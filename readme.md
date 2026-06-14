@@ -49,12 +49,13 @@ Known limitations:
 an omitted key) falls back to the defaults below, so a repository with no
 `atelier.toml` at all builds the defaults.
 
-| key            | type            | default                                   | meaning                                              |
-| -------------- | --------------- | ----------------------------------------- | ---------------------------------------------------- |
-| `systems`      | list of strings | `["x86_64-linux"]`                        | systems to evaluate and build for                    |
-| `include`      | list of globs   | `["packages.*.*", "devShells.*.default"]` | attributes to build                                  |
-| `exclude`      | list of globs   | `[]`                                      | attributes to drop (exclude beats include)           |
-| `substituters` | list of strings | `[]`                                      | extra caches to check; a cached attribute is skipped |
+| key                   | type            | default                                   | meaning                                              |
+| --------------------- | --------------- | ----------------------------------------- | ---------------------------------------------------- |
+| `systems`             | list of strings | `["x86_64-linux"]`                        | systems to evaluate and build for                    |
+| `include`             | list of globs   | `["packages.*.*", "devShells.*.default"]` | attributes to build                                  |
+| `exclude`             | list of globs   | `[]`                                      | attributes to drop (exclude beats include)           |
+| `substituters`        | list of strings | `[]`                                      | extra caches to check; a cached attribute is skipped |
+| `trusted-public-keys` | list of strings | `[]`                                      | public keys for `substituters`                       |
 
 ### Skipping cached builds
 

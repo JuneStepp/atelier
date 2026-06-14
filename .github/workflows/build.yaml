@@ -16,6 +16,11 @@ on:
         required: false
         default: false
         type: boolean
+      rules:
+        description: Atelier rule file whose substituters and trusted-public-keys feed nix.conf
+        required: false
+        default: atelier.toml
+        type: string
       install-command:
         description: Shell command that installs Nix; empty uses the built-in installer
         required: false
@@ -78,6 +83,7 @@ jobs:
           system: ${{ matrix.system }}
           install-command: ${{ inputs.install-command }}
           extra-conf: ${{ inputs.extra-conf }}
+          rules: ${{ inputs.rules }}
 
       - name: Build
         if: ${{ matrix.installable != '' }}
