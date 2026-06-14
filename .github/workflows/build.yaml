@@ -184,12 +184,20 @@ jobs:
             [ $? -eq 0 ] || echo "::warning::niks3 push failed"
           fi
 
+      - name: Sanitize matrix label for artifact upload
+        id: sanitize_label
+        env:
+          label: ${{ matrix.label }}
+        run: |
+          matrix_label=$(echo -n "$label" | sed 's/\//./g')
+          echo "matrix_label=$matrix_label" >> $GITHUB_OUTPUT
+
       - name: Upload Log
         if: ${{ always() && matrix.installable != '' }}
         uses: actions/upload-artifact@v7
         with:
           # the label is the flake attribute, unique per cell across all chunks
           # strategy.job-index resets per chunk so it would collide otherwise
-          name: log-${{ matrix.label }}
+          name: log-${{ steps.sanitize_label.outputs.matrix_label }}
           path: build.log
           if-no-files-found: ignore
