@@ -1,6 +1,7 @@
 import fnmatch
 import tomllib
 from pathlib import Path
+from typing import Any
 
 from atelier.types import (
     DEFAULT_INCLUDE,
@@ -13,7 +14,7 @@ from atelier.types import (
 _GLOB_CHARS = frozenset("*?[]")
 
 
-def _build(data: dict) -> Rules:
+def _build(data: dict[str, Any]) -> Rules:
     """Build ``Rules`` from parsed toml, falling back to defaults for omitted keys.
 
     The official cache is always folded into ``substituters`` (a set, so a user
