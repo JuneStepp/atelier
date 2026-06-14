@@ -157,11 +157,6 @@ jobs:
   Build:
     needs: Discover
     if: ${{ needs.Discover.outputs.chunks != '' && needs.Discover.outputs.chunks != '[]' }}
-    # carry id-token down to build.yaml for the niks3 oidc push; a callee cannot
-    # raise it, so the top-level contents:read would otherwise strip it here
-    permissions:
-      contents: read
-      id-token: write
     strategy:
       fail-fast: false
       matrix:

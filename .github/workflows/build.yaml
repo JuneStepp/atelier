@@ -84,11 +84,6 @@ jobs:
       matrix: ${{ fromJSON(inputs.cells) }}
     name: ${{ matrix.label }}
     runs-on: ${{ matrix.runner }}
-    # id-token lets the niks3 push mint a github oidc token; harmless for the
-    # other backends. it only takes effect if the caller granted it too
-    permissions:
-      contents: read
-      id-token: write
     env:
       INSTALLABLE: ${{ matrix.installable }}
       LABEL: ${{ matrix.label }}
