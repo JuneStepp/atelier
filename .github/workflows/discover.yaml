@@ -56,6 +56,26 @@ on:
         description: Extra nix.conf lines appended after the required settings
         type: string
         default: ""
+      pre-install:
+        description: Shell command run before Nix is installed (discovery and every build cell)
+        type: string
+        default: ""
+      post-install:
+        description: Shell command run after Nix is installed and configured (discovery and every build cell)
+        type: string
+        default: ""
+      pre-push:
+        description: Shell command run before the cache push on every build cell
+        type: string
+        default: ""
+      post-push:
+        description: Shell command run after the cache push on every build cell
+        type: string
+        default: ""
+      push-command:
+        description: Shell command that pushes build results on every build cell; empty uses the built-in push
+        type: string
+        default: ""
     secrets:
       ATTIC_TOKEN:
         required: false
@@ -97,6 +117,9 @@ jobs:
             # the rule file drives the pull cache (its substituters + trusted-public-
             # keys), injected into nix.conf so every nix install can substitute it
             rules: ${{ toJSON(inputs.rules) }}
+            # install hooks apply to matrix generation too, not just the build cells
+            pre-install: ${{ toJSON(inputs.pre-install) }}
+            post-install: ${{ toJSON(inputs.post-install) }}
 
       - name: Generate Matrix
         id: gen
@@ -120,9 +143,9 @@ jobs:
           [ "${ON_AARCH64_LINUX:-true}" != "false" ] && systems="${systems:+$systems,}aarch64-linux"
           [ "${ON_AARCH64_DARWIN:-true}" != "false" ] && systems="${systems:+$systems,}aarch64-darwin"
 
-          # on push and pull_request the toggles are empty so systems holds all
-          # three, an empty systems here means a dispatch unchecked every system
-          # so build nothing rather than letting the tool read empty as all
+          # callers leave the toggles at their defaults (all true) so systems
+          # holds all three; an empty systems here means a caller disabled every
+          # toggle, so build nothing rather than letting the tool read empty as all
           if [ -z "$systems" ]; then
             echo "::notice::All systems disabled, nothing to build"
             { echo "chunks=[]"; echo "skipped=[]"; } >> "$GITHUB_OUTPUT"
@@ -156,6 +179,11 @@ jobs:
       rules: ${{ inputs.rules }}
       install-command: ${{ inputs.install-command }}
       extra-conf: ${{ inputs.extra-conf }}
+      pre-install: ${{ inputs.pre-install }}
+      post-install: ${{ inputs.post-install }}
+      pre-push: ${{ inputs.pre-push }}
+      post-push: ${{ inputs.post-push }}
+      push-command: ${{ inputs.push-command }}
     secrets:
       ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
       CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}

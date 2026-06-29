@@ -39,6 +39,31 @@ on:
         required: false
         default: ""
         type: string
+      pre-install:
+        description: Shell command run before Nix is installed on every cell
+        required: false
+        default: ""
+        type: string
+      post-install:
+        description: Shell command run after Nix is installed and configured on every cell
+        required: false
+        default: ""
+        type: string
+      pre-push:
+        description: Shell command run before the cache push, only when a push would happen
+        required: false
+        default: ""
+        type: string
+      post-push:
+        description: Shell command run after the cache push, only when a push would happen
+        required: false
+        default: ""
+        type: string
+      push-command:
+        description: Shell command that pushes build results; empty uses the built-in cache push
+        required: false
+        default: ""
+        type: string
     secrets:
       ATTIC_TOKEN:
         required: false
@@ -92,6 +117,8 @@ jobs:
             install-command: ${{ toJSON(inputs.install-command) }}
             extra-conf: ${{ toJSON(inputs.extra-conf) }}
             rules: ${{ toJSON(inputs.rules) }}
+            pre-install: ${{ toJSON(inputs.pre-install) }}
+            post-install: ${{ toJSON(inputs.post-install) }}
 
       - name: Build
         if: ${{ matrix.installable != '' }}
@@ -100,8 +127,31 @@ jobs:
           set -o pipefail
           nix build "${INSTALLABLE}^*" --no-link --print-build-logs 2>&1 | tee build.log
 
+      # the push phase brackets pre-push, the push (built-in or custom), and
+      # post-push under one guard: a push was requested for a real, non-fork
+      # build. it deliberately omits the "a backend is configured" check the
+      # built-in push carries, so push-command and the hooks can target a cache
+      # atelier has no native support for. each step is env-passed and not
+      # interpolated into the run body so it cannot break out of the run
+      - name: Pre Push Hook
+        if: ${{ inputs.push && matrix.installable != '' && github.event.pull_request.head.repo.fork != true && inputs.pre-push != '' }}
+        shell: bash
+        env:
+          PRE_PUSH: ${{ inputs.pre-push }}
+          ATTIC_SERVER: ${{ vars.ATTIC_SERVER }}
+          ATTIC_CACHE: ${{ vars.ATTIC_CACHE }}
+          ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+          CACHIX_CACHE: ${{ vars.CACHIX_CACHE }}
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          CACHIX_SIGNING_KEY: ${{ secrets.CACHIX_SIGNING_KEY }}
+          NIKS3_SERVER: ${{ vars.NIKS3_SERVER }}
+          NIKS3_TOKEN: ${{ secrets.NIKS3_TOKEN }}
+        run: |
+          set -euo pipefail
+          bash -c "${PRE_PUSH}"
+
       - name: Push To Cache
-        if: ${{ inputs.push && matrix.installable != '' && github.event.pull_request.head.repo.fork != true && ((vars.ATTIC_SERVER != '' && vars.ATTIC_CACHE != '') || vars.CACHIX_CACHE != '' || vars.NIKS3_SERVER != '') }}
+        if: ${{ inputs.push && inputs.push-command == '' && matrix.installable != '' && github.event.pull_request.head.repo.fork != true && ((vars.ATTIC_SERVER != '' && vars.ATTIC_CACHE != '') || vars.CACHIX_CACHE != '' || vars.NIKS3_SERVER != '') }}
         shell: bash
         env:
           ATTIC_SERVER: ${{ vars.ATTIC_SERVER }}
@@ -197,6 +247,45 @@ jobs:
             # shellcheck disable=SC2181
             [ $? -eq 0 ] || echo "::warning::niks3 push failed"
           fi
+
+      # custom push replaces the built-in one (like install-command replaces the
+      # installer): when set, the native Push To Cache above is skipped. the
+      # attribute is in INSTALLABLE (job env) so the command can resolve its own
+      # out-paths, e.g. nix build "$INSTALLABLE^*" --no-link --print-out-paths;
+      # the cache vars/secrets are exported too so a custom push can reuse them
+      - name: Push To Cache (Custom)
+        if: ${{ inputs.push && inputs.push-command != '' && matrix.installable != '' && github.event.pull_request.head.repo.fork != true }}
+        shell: bash
+        env:
+          PUSH_COMMAND: ${{ inputs.push-command }}
+          ATTIC_SERVER: ${{ vars.ATTIC_SERVER }}
+          ATTIC_CACHE: ${{ vars.ATTIC_CACHE }}
+          ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+          CACHIX_CACHE: ${{ vars.CACHIX_CACHE }}
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          CACHIX_SIGNING_KEY: ${{ secrets.CACHIX_SIGNING_KEY }}
+          NIKS3_SERVER: ${{ vars.NIKS3_SERVER }}
+          NIKS3_TOKEN: ${{ secrets.NIKS3_TOKEN }}
+        run: |
+          set -euo pipefail
+          bash -c "${PUSH_COMMAND}"
+
+      - name: Post Push Hook
+        if: ${{ inputs.push && matrix.installable != '' && github.event.pull_request.head.repo.fork != true && inputs.post-push != '' }}
+        shell: bash
+        env:
+          POST_PUSH: ${{ inputs.post-push }}
+          ATTIC_SERVER: ${{ vars.ATTIC_SERVER }}
+          ATTIC_CACHE: ${{ vars.ATTIC_CACHE }}
+          ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+          CACHIX_CACHE: ${{ vars.CACHIX_CACHE }}
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          CACHIX_SIGNING_KEY: ${{ secrets.CACHIX_SIGNING_KEY }}
+          NIKS3_SERVER: ${{ vars.NIKS3_SERVER }}
+          NIKS3_TOKEN: ${{ secrets.NIKS3_TOKEN }}
+        run: |
+          set -euo pipefail
+          bash -c "${POST_PUSH}"
 
       - name: Upload Log
         if: ${{ always() && matrix.installable != '' }}
