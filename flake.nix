@@ -45,6 +45,7 @@
 
       devShells.default = pkgs.mkShell {
         packages = with pkgs; [
+          deno
           nixpkgs-fmt
           python
           python.pkgs.venvShellHook
