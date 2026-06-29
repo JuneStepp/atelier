@@ -282,3 +282,70 @@ settings will not take effect.
 Prefer a fork if you want to hack on atelier itself or keep a vendored copy.
 Fork the repo, enable Actions on the fork, add your cache secrets and variables,
 edit `atelier.toml`, and pull upstream improvements with **Sync fork**.
+
+## Hooks and custom push
+
+Beyond a custom installer, Atelier runs four optional shell hooks and accepts a
+custom push command. Each is injected the same way as `install-command` using
+`with:` inputs.
+
+| input          | type   | default | runs on                   | when                                             |
+| -------------- | ------ | ------- | ------------------------- | ------------------------------------------------ |
+| `pre-install`  | string | `""`    | discovery and every build | first step, before Nix is installed              |
+| `post-install` | string | `""`    | discovery and every build | last step, after Nix is installed and configured |
+| `pre-push`     | string | `""`    | every build cell          | before the push, only when a push would happen   |
+| `push-command` | string | `""`    | every build cell          | replaces the built-in cache push when set        |
+| `post-push`    | string | `""`    | every build cell          | after the push, only when a push would happen    |
+
+### Install hooks
+
+`pre-install` and `post-install` bracket the entire Set Up Nix action, which
+runs both in the discovery (matrix generation) job and in every build cell.
+
+`pre-install` is the very first step, so it runs on a fresh runner before disk
+reclaim and before any installer.
+
+`post-install` is the very last step, so Nix is installed, configured, and ready
+to use. Neither is tied to `install-command`, so they fire whether the built-in
+installer or a custom one runs.
+
+```yaml
+jobs:
+  Atelier:
+    uses: stepbrobd/atelier/.github/workflows/discover.yaml@master
+    with:
+      pre-install: echo "about to install nix on $(uname -m)"
+      post-install: nix --version
+```
+
+### Push hooks and a custom push
+
+`pre-push`, `post-push`, and `push-command` apply only to the build cells (the
+discovery job never pushes). They share the `push: true` guard.
+
+`push-command` replaces the built-in push exactly like `install-command`
+replaces the installer (set it and the native Attic/Cachix/niks3 push is
+skipped). The attribute being built is exposed as `INSTALLABLE`, so a command
+can resolve its own out-paths.
+
+```yaml
+jobs:
+  Atelier:
+    uses: stepbrobd/atelier/.github/workflows/discover.yaml@master
+    with:
+      # push the built paths to a store Atelier has no native backend for
+      push-command: |
+        nix build "$INSTALLABLE^*" --no-link --print-out-paths \
+          | xargs nix copy --to "https://my-cache.example.org"
+      post-push: echo "pushed $INSTALLABLE"
+```
+
+The three push steps run with `INSTALLABLE` plus the Attic/Cachix/niks3
+**variables** (always, since `vars` resolve against your repo) and any of those
+**secrets** you mapped when calling the workflow, plus GitHub OIDC
+(`ACTIONS_ID_TOKEN_REQUEST_*`) when the caller grants `id-token: write`.
+
+A reusable workflow cannot receive a secret it does not declare, so authenticate
+a custom push with one of those, with OIDC, or with a no-auth endpoint. A
+brand-new credential (say `AWS_ACCESS_KEY_ID`) needs a fork that extends the
+workflow's `secrets:` interface.
