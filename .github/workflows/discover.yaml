@@ -7,54 +7,6 @@ name: Atelier
 # gate is the single stable check for branch protection
 
 on:
-  workflow_dispatch:
-    inputs:
-      repository:
-        description: Atelier repository
-        type: string
-        default: stepbrobd/atelier
-      ref:
-        description: Atelier repository Git ref
-        type: string
-        default: master
-      rules:
-        description: Rule file path
-        type: string
-        default: atelier.toml
-      x86_64-linux:
-        description: Build on x86_64-linux
-        type: boolean
-        default: true
-      aarch64-linux:
-        description: Build on aarch64-linux
-        type: boolean
-        default: true
-      aarch64-darwin:
-        description: Build on aarch64-darwin
-        type: boolean
-        default: true
-      attr:
-        description: Restrict to attrs matching this glob, empty means all
-        type: string
-        default: ""
-      push:
-        description: Push results to the binary cache
-        type: boolean
-        default: true
-      workers:
-        description: Eval workers; each may use ~4 GiB, keep workers x 4 GiB under runner RAM
-        type: number
-        default: 2
-      install-command:
-        description: Shell command that installs Nix; empty uses the built-in installer
-        type: string
-        default: ""
-      extra-conf:
-        description: Extra nix.conf lines appended after the required settings
-        type: string
-        default: ""
-  # downstream repos consume atelier by calling this workflow; the inputs mirror
-  # workflow_dispatch so the generate step reads them the same way
   workflow_call:
     inputs:
       repository:
