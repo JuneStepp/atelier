@@ -11,6 +11,12 @@ inputs:
   install-command:
     description: Shell command that installs Nix; empty uses the built-in installer
     default: ""
+  pre-install:
+    description: Shell command run as the first step, before Nix is installed; fires whichever installer is used
+    default: ""
+  post-install:
+    description: Shell command run as the last step, after Nix is installed and configured
+    default: ""
   extra-conf:
     description: Extra nix.conf lines appended after the required settings
     default: ""
@@ -21,6 +27,19 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Pre Install Hook
+      # consumer-supplied command, passed via env (not interpolated into the
+      # script body) so it cannot break out of the run. it is the first step and
+      # carries no install-command guard, so it fires before the built-in or a
+      # custom installer alike, on a fresh runner before disk reclaim
+      if: ${{ inputs.pre-install != '' }}
+      shell: bash
+      env:
+        PRE_INSTALL: ${{ inputs.pre-install }}
+      run: |
+        set -euo pipefail
+        bash -c "${PRE_INSTALL}"
+
     - name: Reclaim Disk Space (Linux)
       if: ${{ inputs.reclaim == 'true' && runner.os == 'Linux' }}
       uses: wimpysworld/nothing-but-nix@687c797a730352432950c707ab493fcc951818d7 # v10
@@ -165,3 +184,14 @@ runs:
           echo "::group::Disk space (after)"
           sudo df -h
           echo "::endgroup::"
+
+    - name: Post Install Hook
+      # last step, so nix is installed and configured (any installer) and ready
+      # to use; env-passed like the pre-install hook for the same reason
+      if: ${{ inputs.post-install != '' }}
+      shell: bash
+      env:
+        POST_INSTALL: ${{ inputs.post-install }}
+      run: |
+        set -euo pipefail
+        bash -c "${POST_INSTALL}"
