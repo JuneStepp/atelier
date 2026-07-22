@@ -45,6 +45,7 @@ runs:
       uses: wimpysworld/nothing-but-nix@687c797a730352432950c707ab493fcc951818d7 # v10
       with:
         hatchet-protocol: rampage
+        witness-carnage: true
 
     - name: Reclaim Disk Space (Darwin)
       if: ${{ inputs.reclaim == 'true' && runner.os == 'macOS' }}
