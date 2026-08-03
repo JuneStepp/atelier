@@ -105,7 +105,7 @@ jobs:
       - name: Set Up Nix
         if: ${{ matrix.installable != '' }}
         uses: $/.github/actions/atelier
-        with: |
+        with:
           system: ${{ matrix.system }}
           install-command: ${{ inputs.install-command }}
           extra-conf: ${{ inputs.extra-conf }}

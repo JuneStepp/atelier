@@ -107,7 +107,7 @@ jobs:
 
       - name: Set Up Nix
         uses: $/.github/actions/atelier
-        with: |
+        with:
           system: x86_64-linux
           install-command: ${{ inputs.install-command }}
           extra-conf: ${{ inputs.extra-conf }}
