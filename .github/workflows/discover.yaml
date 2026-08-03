@@ -106,20 +106,18 @@ jobs:
           persist-credentials: false
 
       - name: Set Up Nix
-        uses: jenseng/dynamic-uses@d683d56bffbc1f36158989b5fc62288697aae27b # 2025-12-18
-        with:
-          uses: ${{ inputs.repository }}/.github/actions/atelier@${{ inputs.ref }}
-          with: |
-            system: x86_64-linux
-            reclaim: "false"
-            install-command: ${{ toJSON(inputs.install-command) }}
-            extra-conf: ${{ toJSON(inputs.extra-conf) }}
-            # the rule file drives the pull cache (its substituters + trusted-public-
-            # keys), injected into nix.conf so every nix install can substitute it
-            rules: ${{ toJSON(inputs.rules) }}
-            # install hooks apply to matrix generation too, not just the build cells
-            pre-install: ${{ toJSON(inputs.pre-install) }}
-            post-install: ${{ toJSON(inputs.post-install) }}
+        uses: $/.github/actions/atelier
+        with: |
+          system: x86_64-linux
+          reclaim: "false"
+          install-command: ${{ inputs.install-command }}
+          extra-conf: ${{ inputs.extra-conf }}
+          # the rule file drives the pull cache (its substituters + trusted-public-
+          # keys), injected into nix.conf so every nix install can substitute it
+          rules: ${{ inputs.rules }}
+          # install hooks apply to matrix generation too, not just the build cells
+          pre-install: ${{ inputs.pre-install }}
+          post-install: ${{ inputs.post-install }}
 
       - name: Generate Matrix
         id: gen
