@@ -103,6 +103,7 @@ runs:
           echo "accept-flake-config = true"
           echo "experimental-features = nix-command flakes"
           echo "build-dir = /nix/build"
+          echo "http3 = true"
           echo "system = ${SYSTEM}"
           echo "sandbox = ${SANDBOX}"
           if [ -n "${subs}" ]; then
